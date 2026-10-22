@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Check Application Code
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  check-build:
     runs-on: ubuntu-latest
 
     steps:
@@ -18,21 +18,8 @@ jobs:
         with:
           node-version: 20
 
-      - name: 📱 Setup EAS
-        uses: expo/expo-github-action@v8
-        with:
-          eas-version: latest
-          token: ${{ secrets.EXPO_TOKEN }}
-
       - name: 📦 Install dependencies
         run: npm install
 
-      - name: 🚀 Build Web / Export
+      - name: 📱 Verify React Native compilation
         run: npx expo export --platform web
-
-      - name: 📤 Upload Build Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: malik-shop-web
-          path: dist/
-          
