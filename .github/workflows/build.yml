@@ -21,5 +21,6 @@ jobs:
       - name: 📦 Install dependencies
         run: npm install
 
-      - name: 📱 Verify React Native compilation
+      - name: 📱 Test Build
         run: npx expo export --platform web
+        
