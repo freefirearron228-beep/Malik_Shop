@@ -28,19 +28,15 @@ jobs:
         uses: android-actions/setup-android@v3
 
       - name: 📦 Install dependencies
-        run: npm install
-
-      - name: ⚙️ Generate Android Project
-        run: npx expo prebuild --platform android
-
-      - name: 🔨 Build APK with Gradle
         run: |
-          cd android
-          chmod +x gradlew
-          ./gradlew assembleRelease --no-daemon
+          npm install
+          npm install -g eas-cli
+
+      - name: 🔨 Build Android APK with EAS
+        run: eas build --platform android --profile preview --local --non-interactive
 
       - name: 📤 Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-apk
-          path: android/app/build/outputs/apk/release/app-release.apk
+          path: "*.apk"
