@@ -27,7 +27,7 @@ jobs:
       - name: 📦 Install dependencies
         run: npm install
 
-      - name: 🧹 Clean and Prebuild Android
+      - name: 🧹 Clean & Prebuild Android Project
         run: |
           rm -rf android
           npx expo prebuild --platform android --clean
