@@ -24,19 +24,20 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: 🤖 Setup Android SDK
-        uses: android-actions/setup-android@v3
-
       - name: 📦 Install dependencies
-        run: |
-          npm install
-          npm install -g eas-cli
+        run: npm install
 
-      - name: 🔨 Build Android APK with EAS
-        run: eas build --platform android --profile preview --local --non-interactive
+      - name: ⚙️ Generate Android Project
+        run: npx expo prebuild --platform android
+
+      - name: 🔨 Build APK with Gradle
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon
 
       - name: 📤 Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-apk
-          path: "*.apk"
+          path: android/app/build/outputs/apk/release/app-release.apk
