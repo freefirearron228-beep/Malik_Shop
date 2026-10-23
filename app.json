@@ -7,6 +7,14 @@
     "userInterfaceStyle": "light",
     "android": {
       "package": "com.malikshop.app"
-    }
+    },
+    "plugins": [
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#ffffff"
+        }
+      ]
+    ]
   }
 }
