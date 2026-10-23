@@ -11,24 +11,25 @@ import {
   Alert,
   SafeAreaView,
   Dimensions,
-  StatusBar
+  StatusBar,
+  Linking
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Video } from 'expo-av';
 
 const { width } = Dimensions.get('window');
-const STORAGE_KEY = '@malik_shop_products';
+const STORAGE_KEY = '@malik_shop_products_v2';
 
 export default function App() {
   const ADMIN_PASSWORD = "1234";
 
-  // États principaux
   const [products, setProducts] = useState([]);
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
   const [showAdminLogin, setShowAdminLogin] = useState(false);
   const [inputPassword, setInputPassword] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
-  const [isDarkMode, setIsDarkMode] = useState(true); // Thème Sombre par défaut
+  const [isDarkMode, setIsDarkMode] = useState(true);
 
   // Formulaire Produit Admin
   const [showProductModal, setShowProductModal] = useState(false);
@@ -38,14 +39,16 @@ export default function App() {
   const [category, setCategory] = useState('');
   const [description, setDescription] = useState('');
   const [location, setLocation] = useState('');
-  const [images, setImages] = useState(['', '', '', '']);
+  const [contact, setContact] = useState(''); // Contact ou WhatsApp
+  const [images, setImages] = useState(['', '', '']); // 3 Photos max
+  const [video, setVideo] = useState(''); // 1 Vidéo max (4ème case)
 
   // Modal Vue Client & Zoom
   const [selectedProduct, setSelectedProduct] = useState(null);
-  const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const [activeMediaIndex, setActiveMediaIndex] = useState(0); // 0,1,2 pour photos, 3 pour vidéo
   const [showZoomModal, setShowZoomModal] = useState(false);
+  const [isZoomed, setIsZoomed] = useState(false);
 
-  // 1. Charger les produits sauvegardés au démarrage
   useEffect(() => {
     loadProducts();
   }, []);
@@ -53,11 +56,9 @@ export default function App() {
   const loadProducts = async () => {
     try {
       const stored = await AsyncStorage.getItem(STORAGE_KEY);
-      if (stored !== null) {
-        setProducts(JSON.parse(stored));
-      }
+      if (stored !== null) setProducts(JSON.parse(stored));
     } catch (e) {
-      console.error("Erreur de chargement", e);
+      console.error(e);
     }
   };
 
@@ -66,30 +67,26 @@ export default function App() {
       setProducts(newProducts);
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newProducts));
     } catch (e) {
-      console.error("Erreur de sauvegarde", e);
+      console.error(e);
     }
   };
 
-  // Sélection photo depuis la galerie
+  // Sélectionner une photo (cases 1, 2, 3)
   const pickImage = async (index) => {
-    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    
-    if (permissionResult.granted === false) {
-      Alert.alert("Permission requise", "Accès à la galerie nécessaire pour choisir une photo.");
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert("Permission requise", "Accès à la galerie nécessaire.");
       return;
     }
-
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
     });
-
-    if (!result.canceled && result.assets && result.assets.length > 0) {
-      const selectedUri = result.assets[0].uri;
+    if (!result.canceled && result.assets?.[0]?.uri) {
       const newImages = [...images];
-      newImages[index] = selectedUri;
+      newImages[index] = result.assets[0].uri;
       setImages(newImages);
     }
   };
@@ -99,6 +96,26 @@ export default function App() {
     newImages[index] = '';
     setImages(newImages);
   };
+
+  // Sélectionner une vidéo (case 4 - max 1 minute)
+  const pickVideo = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert("Permission requise", "Accès à la galerie nécessaire.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+      allowsEditing: true,
+      videoMaxDuration: 60, // Limite 1 minute
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets?.[0]?.uri) {
+      setVideo(result.assets[0].uri);
+    }
+  };
+
+  const removeVideo = () => setVideo('');
 
   const handleAdminLogin = () => {
     if (inputPassword === ADMIN_PASSWORD) {
@@ -119,9 +136,11 @@ export default function App() {
       setCategory(product.category);
       setDescription(product.description || '');
       setLocation(product.location || '');
-      const imgs = [...product.images];
-      while (imgs.length < 4) imgs.push('');
+      setContact(product.contact || '');
+      const imgs = [...(product.images || ['', '', ''])];
+      while (imgs.length < 3) imgs.push('');
       setImages(imgs);
+      setVideo(product.video || '');
     } else {
       setEditingProductId(null);
       setTitle('');
@@ -129,7 +148,9 @@ export default function App() {
       setCategory('');
       setDescription('');
       setLocation('');
-      setImages(['', '', '', '']);
+      setContact('');
+      setImages(['', '', '']);
+      setVideo('');
     }
     setShowProductModal(true);
   };
@@ -143,27 +164,22 @@ export default function App() {
     const validImages = images.filter(img => img !== '');
     const finalImages = validImages.length > 0 ? validImages : ['https://via.placeholder.com/400/1e293b/ffffff?text=MalikShop'];
 
+    const newProduct = {
+      id: editingProductId || Date.now().toString(),
+      title,
+      price: parseFloat(price),
+      category,
+      description,
+      location,
+      contact,
+      images: finalImages,
+      video
+    };
+
     let updatedList;
     if (editingProductId) {
-      updatedList = products.map(p => p.id === editingProductId ? {
-        ...p,
-        title,
-        price: parseFloat(price),
-        category,
-        description,
-        location,
-        images: finalImages
-      } : p);
+      updatedList = products.map(p => p.id === editingProductId ? newProduct : p);
     } else {
-      const newProduct = {
-        id: Date.now().toString(),
-        title,
-        price: parseFloat(price),
-        category,
-        description,
-        location,
-        images: finalImages
-      };
       updatedList = [...products, newProduct];
     }
 
@@ -172,21 +188,10 @@ export default function App() {
   };
 
   const deleteProduct = (id) => {
-    Alert.alert(
-      "Suppression",
-      "Voulez-vous supprimer cet article ?",
-      [
-        { text: "Annuler", style: "cancel" },
-        { 
-          text: "Supprimer", 
-          style: "destructive", 
-          onPress: () => {
-            const updated = products.filter(p => p.id !== id);
-            saveProductsToStorage(updated);
-          } 
-        }
-      ]
-    );
+    Alert.alert("Suppression", "Voulez-vous supprimer cet article ?", [
+      { text: "Annuler", style: "cancel" },
+      { text: "Supprimer", style: "destructive", onPress: () => saveProductsToStorage(products.filter(p => p.id !== id)) }
+    ]);
   };
 
   const filteredProducts = products.filter(p => 
@@ -194,7 +199,6 @@ export default function App() {
     p.category.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Thèmes dynamique (Clair vs Sombre)
   const theme = {
     bg: isDarkMode ? '#0b0f19' : '#f4f6f8',
     cardBg: isDarkMode ? '#1f2937' : '#ffffff',
@@ -209,32 +213,22 @@ export default function App() {
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
       <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={theme.headerBg} />
 
-      {/* En-Tête MalikShop */}
+      {/* En-Tête */}
       <View style={[styles.header, { backgroundColor: theme.headerBg, borderColor: theme.border }]}>
         <View style={styles.headerTop}>
           <Text style={[styles.logoText, { color: theme.text }]}>🛒 <Text style={styles.logoBold}>Malik</Text><Text style={styles.logoGold}>Shop</Text></Text>
           
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            {/* Bouton Changer Thème Sombre / Clair */}
-            <TouchableOpacity 
-              style={[styles.themeToggleBtn, { backgroundColor: theme.border }]} 
-              onPress={() => setIsDarkMode(!isDarkMode)}
-            >
+            <TouchableOpacity style={[styles.themeToggleBtn, { backgroundColor: theme.border }]} onPress={() => setIsDarkMode(!isDarkMode)}>
               <Text style={{ fontSize: 14 }}>{isDarkMode ? '☀️' : '🌙'}</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity 
-              style={[styles.adminBadge, { backgroundColor: theme.border }]}
-              onPress={() => isAdminLoggedIn ? setIsAdminLoggedIn(false) : setShowAdminLogin(true)}
-            >
-              <Text style={styles.adminBadgeText}>
-                {isAdminLoggedIn ? "🔓 Admin (Déconnexion)" : "🔒 Admin"}
-              </Text>
+            <TouchableOpacity style={[styles.adminBadge, { backgroundColor: theme.border }]} onPress={() => isAdminLoggedIn ? setIsAdminLoggedIn(false) : setShowAdminLogin(true)}>
+              <Text style={styles.adminBadgeText}>{isAdminLoggedIn ? "🔓 Admin (Déco)" : "🔒 Admin"}</Text>
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* Recherche */}
         <TextInput
           style={[styles.searchInput, { backgroundColor: theme.inputBg, color: theme.text, borderColor: theme.border }]}
           placeholder="Rechercher un produit..."
@@ -244,14 +238,13 @@ export default function App() {
         />
       </View>
 
-      {/* Bouton Mettre en Vente Admin */}
       {isAdminLoggedIn && (
         <TouchableOpacity style={styles.addButton} onPress={() => openProductForm()}>
           <Text style={styles.addButtonText}>➕ Mettre un article en vente</Text>
         </TouchableOpacity>
       )}
 
-      {/* Liste des produits */}
+      {/* Catalogue */}
       <ScrollView style={styles.catalog} showsVerticalScrollIndicator={false}>
         {filteredProducts.length === 0 ? (
           <View style={styles.emptyContainer}>
@@ -263,7 +256,7 @@ export default function App() {
           <View style={styles.productGrid}>
             {filteredProducts.map(product => (
               <View key={product.id} style={[styles.productCard, { backgroundColor: theme.cardBg }]}>
-                <TouchableOpacity onPress={() => { setSelectedProduct(product); setActiveImageIndex(0); }}>
+                <TouchableOpacity onPress={() => { setSelectedProduct(product); setActiveMediaIndex(0); }}>
                   <Image source={{ uri: product.images[0] }} style={styles.productImage} />
                   <View style={styles.productInfo}>
                     <Text style={styles.productCategory}>{product.category}</Text>
@@ -288,13 +281,8 @@ export default function App() {
         )}
       </ScrollView>
 
-      {/* MODAL : Login Admin (Touche retour fonctionnelle) */}
-      <Modal 
-        visible={showAdminLogin} 
-        transparent 
-        animationType="fade"
-        onRequestClose={() => setShowAdminLogin(false)}
-      >
+      {/* Modal Admin Login */}
+      <Modal visible={showAdminLogin} transparent animationType="fade" onRequestClose={() => setShowAdminLogin(false)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.loginCard, { backgroundColor: theme.cardBg }]}>
             <Text style={[styles.loginTitle, { color: theme.text }]}>🔒 Code Secret Admin</Text>
@@ -316,21 +304,17 @@ export default function App() {
         </View>
       </Modal>
 
-      {/* MODAL : Formulaire Produit (Touche retour fonctionnelle) */}
-      <Modal 
-        visible={showProductModal} 
-        animationType="slide"
-        onRequestClose={() => setShowProductModal(false)}
-      >
+      {/* Modal Ajout/Edition avec 3 Photos + 1 Vidéo */}
+      <Modal visible={showProductModal} animationType="slide" onRequestClose={() => setShowProductModal(false)}>
         <SafeAreaView style={[styles.modalDarkContainer, { backgroundColor: theme.bg }]}>
           <ScrollView style={{ padding: 20 }}>
             <Text style={[styles.modalMainTitle, { color: theme.text }]}>Mettre un article en vente</Text>
-            <Text style={styles.modalSubTitle}>Jusqu'à 4 photos • Sauvegarde permanente</Text>
+            <Text style={styles.modalSubTitle}>3 photos + 1 Vidéo de présentation (1 min max)</Text>
 
-            <Text style={styles.sectionLabel}>Photos du produit (1 à 4)</Text>
-            
+            <Text style={styles.sectionLabel}>Médias (3 Photos + 1 Vidéo)</Text>
             <View style={styles.photoGrid}>
-              {[0, 1, 2, 3].map((index) => (
+              {/* Cases Photos 1, 2, 3 */}
+              {[0, 1, 2].map((index) => (
                 <View key={index} style={styles.photoBoxContainer}>
                   {images[index] ? (
                     <View style={styles.photoBoxFilled}>
@@ -347,55 +331,50 @@ export default function App() {
                   )}
                 </View>
               ))}
+
+              {/* 4ème Case : VIDÉO */}
+              <View style={styles.photoBoxContainer}>
+                {video ? (
+                  <View style={styles.photoBoxFilled}>
+                    <Video
+                      source={{ uri: video }}
+                      style={styles.photoBoxImage}
+                      resizeMode="cover"
+                      shouldPlay={false}
+                    />
+                    <View style={styles.videoBadgeTag}>
+                      <Text style={{color: '#fff', fontSize: 10, fontWeight: 'bold'}}>🎬 Vidéo</Text>
+                    </View>
+                    <TouchableOpacity style={styles.deleteBadge} onPress={removeVideo}>
+                      <Text style={styles.deleteBadgeText}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <TouchableOpacity style={[styles.photoBoxDashedVideo, { backgroundColor: theme.cardBg }]} onPress={pickVideo}>
+                    <Text style={styles.cameraIcon}>🎥</Text>
+                    <Text style={styles.videoBoxText}>Vidéo (1 min)</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
             </View>
-            <Text style={styles.infoText}>JPG ou PNG • max 5 Mo par photo</Text>
 
             <Text style={[styles.label, { color: theme.text }]}>Titre de l'article *</Text>
-            <TextInput
-              style={[styles.input, { backgroundColor: theme.inputBg, color: theme.text, borderColor: theme.border }]}
-              placeholder="Ex: iPhone 13 Pro 128Go"
-              placeholderTextColor="#6b7280"
-              value={title}
-              onChangeText={setTitle}
-            />
+            <TextInput style={[styles.input, { backgroundColor: theme.inputBg, color: theme.text, borderColor: theme.border }]} placeholder="Ex: iPhone 13 Pro" placeholderTextColor="#6b7280" value={title} onChangeText={setTitle} />
 
             <Text style={[styles.label, { color: theme.text }]}>Prix (FCFA) *</Text>
-            <TextInput
-              style={[styles.input, { backgroundColor: theme.inputBg, color: theme.text, borderColor: theme.border }]}
-              placeholder="Ex: 250000"
-              placeholderTextColor="#6b7280"
-              keyboardType="numeric"
-              value={price}
-              onChangeText={setPrice}
-            />
+            <TextInput style={[styles.input, { backgroundColor: theme.inputBg, color: theme.text, borderColor: theme.border }]} placeholder="Ex: 250000" placeholderTextColor="#6b7280" keyboardType="numeric" value={price} onChangeText={setPrice} />
 
             <Text style={[styles.label, { color: theme.text }]}>Catégorie *</Text>
-            <TextInput
-              style={[styles.input, { backgroundColor: theme.inputBg, color: theme.text, borderColor: theme.border }]}
-              placeholder="Ex: Électronique, Vêtements, Chaussures"
-              placeholderTextColor="#6b7280"
-              value={category}
-              onChangeText={setCategory}
-            />
+            <TextInput style={[styles.input, { backgroundColor: theme.inputBg, color: theme.text, borderColor: theme.border }]} placeholder="Ex: Électronique, Vêtements" placeholderTextColor="#6b7280" value={category} onChangeText={setCategory} />
+
+            <Text style={[styles.label, { color: theme.text }]}>Contact / WhatsApp du Vendeur</Text>
+            <TextInput style={[styles.input, { backgroundColor: theme.inputBg, color: theme.text, borderColor: theme.border }]} placeholder="Ex: +228 90000000" placeholderTextColor="#6b7280" keyboardType="phone-pad" value={contact} onChangeText={setContact} />
 
             <Text style={[styles.label, { color: theme.text }]}>Description</Text>
-            <TextInput
-              style={[styles.input, { backgroundColor: theme.inputBg, color: theme.text, borderColor: theme.border, height: 90 }]}
-              placeholder="État, marque, livraison possible..."
-              placeholderTextColor="#6b7280"
-              multiline
-              value={description}
-              onChangeText={setDescription}
-            />
+            <TextInput style={[styles.input, { backgroundColor: theme.inputBg, color: theme.text, borderColor: theme.border, height: 80 }]} placeholder="État, marque..." placeholderTextColor="#6b7280" multiline value={description} onChangeText={setDescription} />
 
             <Text style={[styles.label, { color: theme.text }]}>Localisation</Text>
-            <TextInput
-              style={[styles.input, { backgroundColor: theme.inputBg, color: theme.text, borderColor: theme.border }]}
-              placeholder="Ex: Lomé, Kara, Sokodé..."
-              placeholderTextColor="#6b7280"
-              value={location}
-              onChangeText={setLocation}
-            />
+            <TextInput style={[styles.input, { backgroundColor: theme.inputBg, color: theme.text, borderColor: theme.border }]} placeholder="Ex: Lomé" placeholderTextColor="#6b7280" value={location} onChangeText={setLocation} />
 
             <TouchableOpacity style={styles.primaryBtn} onPress={saveProduct}>
               <Text style={styles.primaryBtnText}>💾 Enregistrer l'article</Text>
@@ -408,36 +387,51 @@ export default function App() {
         </SafeAreaView>
       </Modal>
 
-      {/* MODAL Client : Fiche produit (Touche retour fonctionnelle) */}
+      {/* Modal Client : Fiche produit avec gestion photos et vidéo */}
       {selectedProduct && (
-        <Modal 
-          visible={true} 
-          animationType="slide"
-          onRequestClose={() => setSelectedProduct(null)}
-        >
+        <Modal visible={true} animationType="slide" onRequestClose={() => setSelectedProduct(null)}>
           <SafeAreaView style={[styles.modalDarkContainer, { backgroundColor: theme.bg }]}>
             <ScrollView style={{ padding: 15 }}>
               <TouchableOpacity style={styles.closeBtn} onPress={() => setSelectedProduct(null)}>
                 <Text style={styles.closeBtnText}>✕ Fermer</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity onPress={() => setShowZoomModal(true)}>
-                <Image source={{ uri: selectedProduct.images[activeImageIndex] }} style={styles.mainImage} />
-                <Text style={styles.zoomText}>🔍 Toucher pour ouvrir en grand & zoomer</Text>
-              </TouchableOpacity>
-
-              {selectedProduct.images.length > 1 && (
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 12 }}>
-                  {selectedProduct.images.map((img, idx) => (
-                    <TouchableOpacity key={idx} onPress={() => setActiveImageIndex(idx)}>
-                      <Image
-                        source={{ uri: img }}
-                        style={[styles.thumb, activeImageIndex === idx && styles.activeThumb]}
-                      />
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
+              {/* Affichage Photo active ou Lecteur Vidéo si l'index correspond à la vidéo */}
+              {activeMediaIndex < selectedProduct.images.length ? (
+                <TouchableOpacity onPress={() => setShowZoomModal(true)}>
+                  <Image source={{ uri: selectedProduct.images[activeMediaIndex] }} style={styles.mainImage} />
+                  <Text style={styles.zoomText}>🔍 Toucher pour ouvrir en grand et zoomer</Text>
+                </TouchableOpacity>
+              ) : (
+                <View style={styles.mainImage}>
+                  {selectedProduct.video ? (
+                    <Video
+                      source={{ uri: selectedProduct.video }}
+                      style={{ width: '100%', height: '100%', borderRadius: 12 }}
+                      useNativeControls
+                      resizeMode="contain"
+                      shouldPlay
+                    />
+                  ) : null}
+                </View>
               )}
+
+              {/* Miniatures (Photos + Vidéo éventuelle) */}
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 12 }}>
+                {selectedProduct.images.map((img, idx) => (
+                  <TouchableOpacity key={idx} onPress={() => setActiveMediaIndex(idx)}>
+                    <Image source={{ uri: img }} style={[styles.thumb, activeMediaIndex === idx && styles.activeThumb]} />
+                  </TouchableOpacity>
+                ))}
+                {selectedProduct.video ? (
+                  <TouchableOpacity onPress={() => setActiveMediaIndex(selectedProduct.images.length)}>
+                    <View style={[styles.thumbVideo, activeMediaIndex === selectedProduct.images.length && styles.activeThumb]}>
+                      <Text style={{ fontSize: 22 }}>🎬</Text>
+                      <Text style={{ color: '#fff', fontSize: 9, fontWeight: 'bold' }}>Vidéo</Text>
+                    </View>
+                  </TouchableOpacity>
+                ) : null}
+              </ScrollView>
 
               <Text style={[styles.detailTitle, { color: theme.text }]}>{selectedProduct.title}</Text>
               <Text style={styles.detailPrice}>{selectedProduct.price.toLocaleString()} FCFA</Text>
@@ -446,40 +440,49 @@ export default function App() {
               <Text style={[styles.detailDescHeader, { color: theme.text }]}>Description :</Text>
               <Text style={styles.detailDesc}>{selectedProduct.description || "Aucune description."}</Text>
 
-              <TouchableOpacity style={styles.buyBtn} onPress={() => Alert.alert("Achat", "Contactez le vendeur pour commander !")}>
-                <Text style={styles.buyBtnText}>🛒 Commander / Payer</Text>
+              {/* Bouton Acheter / Commander avec contact direct WhatsApp / Téléphone */}
+              <TouchableOpacity 
+                style={styles.buyBtn} 
+                onPress={() => {
+                  if (selectedProduct.contact) {
+                    Linking.openURL(`whatsapp://send?phone=${selectedProduct.contact}&text=Bonjour, je souhaite commander : ${selectedProduct.title}`);
+                  } else {
+                    Alert.alert("Contact", "Aucun contact direct renseigné pour ce produit.");
+                  }
+                }}
+              >
+                <Text style={styles.buyBtnText}>💬 Commander / WhatsApp</Text>
               </TouchableOpacity>
             </ScrollView>
           </SafeAreaView>
         </Modal>
       )}
 
-      {/* MODAL Zoom Fullscreen (Zoom pincement à 2 doigts + touche retour) */}
-      {showZoomModal && selectedProduct && (
-        <Modal 
-          visible={true} 
-          transparent
-          onRequestClose={() => setShowZoomModal(false)}
-        >
+      {/* MODAL Zoom au Clic (100% fiable sur tous les Android) */}
+      {showZoomModal && selectedProduct && activeMediaIndex < selectedProduct.images.length && (
+        <Modal visible={true} transparent onRequestClose={() => { setShowZoomModal(false); setIsZoomed(false); }}>
           <View style={styles.zoomOverlay}>
-            <TouchableOpacity style={styles.zoomClose} onPress={() => setShowZoomModal(false)}>
-              <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>✕ Fermer</Text>
+            <TouchableOpacity style={styles.zoomClose} onPress={() => { setShowZoomModal(false); setIsZoomed(false); }}>
+              <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>✕ Fermer le zoom</Text>
             </TouchableOpacity>
 
-            {/* ScrollView avec Zoom Pincement activé */}
-            <ScrollView
-              contentContainerStyle={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}
-              maximumZoomScale={3}
-              minimumZoomScale={1}
-              showsHorizontalScrollIndicator={false}
-              showsVerticalScrollIndicator={false}
+            <TouchableOpacity 
+              activeOpacity={1} 
+              onPress={() => setIsZoomed(!isZoomed)} 
+              style={{ flex: 1, justifyContent: 'center', alignItems: 'center', width: '100%' }}
             >
               <Image
-                source={{ uri: selectedProduct.images[activeImageIndex] }}
-                style={styles.zoomImage}
-                resizeMode="contain"
+                source={{ uri: selectedProduct.images[activeMediaIndex] }}
+                style={{
+                  width: isZoomed ? width * 2 : width * 0.95,
+                  height: isZoomed ? width * 2.5 : width * 1.2,
+                  resizeMode: 'contain'
+                }}
               />
-            </ScrollView>
+              <Text style={{ color: '#aaa', marginTop: 15, fontSize: 12 }}>
+                {isZoomed ? "🔍 Appuyer pour dézoomer" : "🔍 Appuyer pour zoomer"}
+              </Text>
+            </TouchableOpacity>
           </View>
         </Modal>
       )}
@@ -524,13 +527,15 @@ const styles = StyleSheet.create({
   photoGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
   photoBoxContainer: { width: '48%', aspectRatio: 1.3, marginBottom: 12 },
   photoBoxDashed: { flex: 1, borderStyle: 'dashed', borderWidth: 1.5, borderColor: '#f59e0b', borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+  photoBoxDashedVideo: { flex: 1, borderStyle: 'dashed', borderWidth: 1.5, borderColor: '#60a5fa', borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
   cameraIcon: { fontSize: 26 },
   cameraText: { color: '#f59e0b', fontSize: 12, marginTop: 4, fontWeight: '600' },
-  photoBoxFilled: { flex: 1, borderRadius: 10, overflow: 'hidden' },
+  videoBoxText: { color: '#60a5fa', fontSize: 12, marginTop: 4, fontWeight: '600' },
+  photoBoxFilled: { flex: 1, borderRadius: 10, overflow: 'hidden', backgroundColor: '#000' },
   photoBoxImage: { width: '100%', height: '100%' },
+  videoBadgeTag: { position: 'absolute', bottom: 5, left: 5, backgroundColor: 'rgba(0,0,0,0.7)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
   deleteBadge: { position: 'absolute', top: 5, right: 5, backgroundColor: '#ef4444', width: 22, height: 22, borderRadius: 11, justifyContent: 'center', alignItems: 'center' },
   deleteBadgeText: { color: '#fff', fontWeight: 'bold', fontSize: 12 },
-  infoText: { color: '#6b7280', fontSize: 11, marginBottom: 20 },
   label: { fontSize: 13, fontWeight: 'bold', marginBottom: 6, marginTop: 10 },
   input: { borderWidth: 1, borderRadius: 8, padding: 12, fontSize: 14, marginBottom: 12 },
   primaryBtn: { backgroundColor: '#f59e0b', padding: 15, borderRadius: 10, alignItems: 'center', marginTop: 15 },
@@ -542,9 +547,10 @@ const styles = StyleSheet.create({
   loginTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 15, textAlign: 'center' },
   closeBtn: { alignSelf: 'flex-end', padding: 10 },
   closeBtnText: { color: '#ef4444', fontSize: 16, fontWeight: 'bold' },
-  mainImage: { width: '100%', height: 280, borderRadius: 12, backgroundColor: '#1f2937' },
+  mainImage: { width: '100%', height: 280, borderRadius: 12, backgroundColor: '#1f2937', justifyContent: 'center', alignItems: 'center' },
   zoomText: { color: '#9ca3af', textAlign: 'center', fontSize: 12, marginTop: 6 },
   thumb: { width: 60, height: 60, borderRadius: 8, marginRight: 8, borderWidth: 1, borderColor: '#374151' },
+  thumbVideo: { width: 60, height: 60, borderRadius: 8, marginRight: 8, backgroundColor: '#1e3a8a', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#374151' },
   activeThumb: { borderColor: '#f59e0b', borderWidth: 2 },
   detailTitle: { fontSize: 20, fontWeight: 'bold', marginTop: 10 },
   detailPrice: { color: '#10b981', fontSize: 20, fontWeight: 'bold', marginTop: 4 },
@@ -555,5 +561,4 @@ const styles = StyleSheet.create({
   buyBtnText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
   zoomOverlay: { flex: 1, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' },
   zoomClose: { position: 'absolute', top: 50, right: 20, zIndex: 10 },
-  zoomImage: { width, height: width * 1.2 }
 });
