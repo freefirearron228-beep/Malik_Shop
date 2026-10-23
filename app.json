@@ -5,16 +5,9 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
+    "icon": "./assets/grok_1792608616415.jpg",
     "android": {
       "package": "com.malikshop.app"
-    },
-    "plugins": [
-      [
-        "expo-splash-screen",
-        {
-          "backgroundColor": "#ffffff"
-        }
-      ]
-    ]
+    }
   }
 }
