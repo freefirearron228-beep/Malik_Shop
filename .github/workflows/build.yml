@@ -1,4 +1,4 @@
-name: Check Application Code
+name: Build APK
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  check-build:
+  build:
     runs-on: ubuntu-latest
 
     steps:
@@ -18,9 +18,29 @@ jobs:
         with:
           node-version: 20
 
+      - name: ☕ Setup Java JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: 🤖 Setup Android SDK
+        uses: android-actions/setup-android@v3
+
       - name: 📦 Install dependencies
         run: npm install
 
-      - name: 📱 Test Build
-        run: npx expo export --platform web
-        
+      - name: ⚙️ Generate Android Project
+        run: npx expo prebuild --platform android
+
+      - name: 🔨 Build APK with Gradle
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon
+
+      - name: 📤 Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-apk
+          path: android/app/build/outputs/apk/release/app-release.apk
