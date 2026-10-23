@@ -1,89 +1,145 @@
 import React, { useState } from 'react';
-import { 
-  StyleSheet, 
-  Text, 
-  View, 
-  FlatList, 
-  Image, 
-  TouchableOpacity, 
-  TextInput, 
-  SafeAreaView, 
-  ScrollView, 
-  Linking,
-  Alert
+import {
+  StyleSheet,
+  Text,
+  View,
+  TouchableOpacity,
+  ScrollView,
+  Image,
+  TextInput,
+  Modal,
+  Alert,
+  SafeAreaView,
+  Dimensions
 } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
 
-// Vos produits (Exemples de démarrage)
-const INITIAL_PRODUCTS = [
-  {
-    id: '1',
-    name: 'T-Shirt Malik Shop Original',
-    price: '5 000 FCFA',
-    category: 'Vêtements',
-    image: 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=500',
-    description: 'T-shirt 100% coton, confort et style assurés.',
-  },
-  {
-    id: '2',
-    name: 'Chaussures Sneakers Pro',
-    price: '18 000 FCFA',
-    category: 'Chaussures',
-    image: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=500',
-    description: 'Sneakers tendance pour un look moderne et dynamique.',
-  },
-  {
-    id: '3',
-    name: 'Casque Audio Sans Fil',
-    price: '12 000 FCFA',
-    category: 'Électronique',
-    image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500',
-    description: 'Son haute définition avec réduction de bruit.',
-  },
-  {
-    id: '4',
-    name: 'Montre Elegance',
-    price: '15 000 FCFA',
-    category: 'Accessoires',
-    image: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500',
-    description: 'Montre élégante adaptée à toutes les occasions.',
-  },
-];
+const { width } = Dimensions.get('window');
 
 export default function App() {
-  const [products, setProducts] = useState(INITIAL_PRODUCTS);
-  const [search, setSearch] = useState('');
+  // Mot de passe Administrateur
+  const ADMIN_PASSWORD = "1234"; // ⚠️ Change ce mot de passe par le tien !
+
+  // États de l'application
+  const [products, setProducts] = useState([]);
+  const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
+  const [showAdminLogin, setShowAdminLogin] = useState(false);
+  const [inputPassword, setInputPassword] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // États pour la création / modification de produit
+  const [showProductModal, setShowProductModal] = useState(false);
+  const [editingProductId, setEditingProductId] = useState(null);
+  const [title, setTitle] = useState('');
+  const [price, setPrice] = useState('');
+  const [category, setCategory] = useState('');
+  const [description, setDescription] = useState('');
+  const [images, setImages] = useState(['', '', '', '', '']); // Jusqu'à 5 photos
+
+  // États pour la vue détaillée / zoom client
   const [selectedProduct, setSelectedProduct] = useState(null);
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const [showZoomModal, setShowZoomModal] = useState(false);
 
-  // Remplacez par votre vrai numéro WhatsApp (ex: +22890000000)
-  const PHONE_NUMBER = '+22800000000';
-
-  const filteredProducts = products.filter(p => 
-    p.name.toLowerCase().includes(search.toLowerCase()) ||
-    p.category.toLowerCase().includes(search.toLowerCase())
-  );
-
-  const orderOnWhatsApp = (product) => {
-    const message = `Bonjour Malik Shop ! Je souhaite commander le produit : *${product.name}* (Prix : ${product.price}). Est-il toujours disponible ?`;
-    const url = `whatsapp://send?phone=${PHONE_NUMBER}&text=${encodeURIComponent(message)}`;
-    
-    Linking.canOpenURL(url).then(supported => {
-      if (supported) {
-        Linking.openURL(url);
-      } else {
-        Alert.alert('Erreur', 'WhatsApp n\'est pas installé sur votre téléphone.');
-      }
-    });
+  // Connexion Admin
+  const handleAdminLogin = () => {
+    if (inputPassword === ADMIN_PASSWORD) {
+      setIsAdminLoggedIn(true);
+      setShowAdminLogin(false);
+      setInputPassword('');
+      Alert.alert("Succès", "Vous êtes connecté en tant qu'Administrateur !");
+    } else {
+      Alert.alert("Erreur", "Mot de passe incorrect.");
+    }
   };
+
+  // Ouvrir le formulaire d'ajout/modification
+  const openProductForm = (product = null) => {
+    if (product) {
+      setEditingProductId(product.id);
+      setTitle(product.title);
+      setPrice(product.price.toString());
+      setCategory(product.category);
+      setDescription(product.description || '');
+      const imgs = [...product.images];
+      while (imgs.length < 5) imgs.push('');
+      setImages(imgs);
+    } else {
+      setEditingProductId(null);
+      setTitle('');
+      setPrice('');
+      setCategory('');
+      setDescription('');
+      setImages(['', '', '', '', '']);
+    }
+    setShowProductModal(true);
+  };
+
+  // Sauvegarder un produit
+  const saveProduct = () => {
+    if (!title || !price || !category) {
+      Alert.alert("Champs requis", "Veuillez remplir au moins le titre, le prix et la catégorie.");
+      return;
+    }
+
+    const filteredImages = images.filter(url => url.trim() !== '');
+
+    if (editingProductId) {
+      setProducts(products.map(p => p.id === editingProductId ? {
+        ...p,
+        title,
+        price: parseFloat(price),
+        category,
+        description,
+        images: filteredImages.length > 0 ? filteredImages : ['https://via.placeholder.com/300']
+      } : p));
+    } else {
+      const newProduct = {
+        id: Date.now().toString(),
+        title,
+        price: parseFloat(price),
+        category,
+        description,
+        images: filteredImages.length > 0 ? filteredImages : ['https://via.placeholder.com/300']
+      };
+      setProducts([...products, newProduct]);
+    }
+
+    setShowProductModal(false);
+  };
+
+  // Supprimer un produit
+  const deleteProduct = (id) => {
+    Alert.alert(
+      "Confirmation",
+      "Voulez-vous vraiment supprimer ce produit ?",
+      [
+        { text: "Annuler", style: "cancel" },
+        { text: "Supprimer", style: "destructive", onPress: () => setProducts(products.filter(p => p.id !== id)) }
+      ]
+    );
+  };
+
+  // Filtrage recherche
+  const filteredProducts = products.filter(p => 
+    p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    p.category.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar style="light" />
-      
-      {/* En-tête / Header */}
+      {/* En-tête */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>🛍️ Malik Shop</Text>
         <Text style={styles.headerSubtitle}>La qualité à portée de main</Text>
+
+        <TouchableOpacity 
+          style={styles.adminBadge}
+          onPress={() => isAdminLoggedIn ? setIsAdminLoggedIn(false) : setShowAdminLogin(true)}
+        >
+          <Text style={styles.adminBadgeText}>
+            {isAdminLoggedIn ? "🔓 Mode Admin (Déconnexion)" : "🔒 Espace Admin"}
+          </Text>
+        </TouchableOpacity>
       </View>
 
       {/* Barre de recherche */}
@@ -91,195 +147,224 @@ export default function App() {
         <TextInput
           style={styles.searchInput}
           placeholder="Rechercher un produit ou catégorie..."
-          value={search}
-          onChangeText={setSearch}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
         />
       </View>
 
-      {/* Vue Détails du Produit sélectionné */}
-      {selectedProduct ? (
-        <ScrollView style={styles.detailContainer}>
-          <TouchableOpacity style={styles.backButton} onPress={() => setSelectedProduct(null)}>
-            <Text style={styles.backButtonText}>⬅️ Retour à la boutique</Text>
-          </TouchableOpacity>
+      {/* Bouton d'ajout Admin */}
+      {isAdminLoggedIn && (
+        <TouchableOpacity style={styles.addButton} onPress={() => openProductForm()}>
+          <Text style={styles.addButtonText}>➕ Ajouter un nouveau produit</Text>
+        </TouchableOpacity>
+      )}
 
-          <Image source={{ uri: selectedProduct.image }} style={styles.detailImage} />
-          
-          <View style={styles.detailInfo}>
-            <Text style={styles.detailCategory}>{selectedProduct.category}</Text>
-            <Text style={styles.detailName}>{selectedProduct.name}</Text>
-            <Text style={styles.detailPrice}>{selectedProduct.price}</Text>
-            
-            <Text style={styles.descriptionTitle}>Description :</Text>
-            <Text style={styles.detailDescription}>{selectedProduct.description}</Text>
+      {/* Liste du catalogue */}
+      <ScrollView style={styles.catalog}>
+        {filteredProducts.length === 0 ? (
+          <Text style={styles.emptyText}>Aucun produit disponible pour le moment.</Text>
+        ) : (
+          <View style={styles.productGrid}>
+            {filteredProducts.map(product => (
+              <View key={product.id} style={styles.productCard}>
+                <TouchableOpacity onPress={() => { setSelectedProduct(product); setActiveImageIndex(0); }}>
+                  <Image source={{ uri: product.images[0] }} style={styles.productImage} />
+                  <View style={styles.productDetails}>
+                    <Text style={styles.productCategory}>{product.category}</Text>
+                    <Text style={styles.productTitle}>{product.title}</Text>
+                    <Text style={styles.productPrice}>{product.price} FCFA</Text>
+                  </View>
+                </TouchableOpacity>
 
-            <TouchableOpacity 
-              style={styles.orderButton}
-              onPress={() => orderOnWhatsApp(selectedProduct)}
-            >
-              <Text style={styles.orderButtonText}>📱 Commander via WhatsApp</Text>
+                {/* Options d'édition Admin */}
+                {isAdminLoggedIn && (
+                  <View style={styles.adminActions}>
+                    <TouchableOpacity style={styles.editBtn} onPress={() => openProductForm(product)}>
+                      <Text style={styles.btnText}>✏️ Éditer</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.deleteBtn} onPress={() => deleteProduct(product.id)}>
+                      <Text style={styles.btnText}>🗑️ Supprimer</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            ))}
+          </View>
+        )}
+      </ScrollView>
+
+      {/* MODAL : Login Admin */}
+      <Modal visible={showAdminLogin} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>🔒 Connexion Administrateur</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Mot de passe"
+              secureTextEntry
+              value={inputPassword}
+              onChangeText={setInputPassword}
+            />
+            <TouchableOpacity style={styles.saveBtn} onPress={handleAdminLogin}>
+              <Text style={styles.saveBtnText}>Se connecter</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowAdminLogin(false)}>
+              <Text style={styles.cancelBtnText}>Fermer</Text>
             </TouchableOpacity>
           </View>
-        </ScrollView>
-      ) : (
-        /* Liste des produits sous forme de grille */
-        <FlatList
-          data={filteredProducts}
-          keyExtractor={(item) => item.id}
-          numColumns={2}
-          contentContainerStyle={styles.listContainer}
-          renderItem={({ item }) => (
-            <TouchableOpacity 
-              style={styles.card} 
-              onPress={() => setSelectedProduct(item)}
-            >
-              <Image source={{ uri: item.image }} style={styles.cardImage} />
-              <View style={styles.cardInfo}>
-                <Text style={styles.cardCategory}>{item.category}</Text>
-                <Text style={styles.cardName} numberOfLines={1}>{item.name}</Text>
-                <Text style={styles.cardPrice}>{item.price}</Text>
-              </View>
+        </View>
+      </Modal>
+
+      {/* MODAL : Formulaire Produit (Admin) */}
+      <Modal visible={showProductModal} animationType="slide">
+        <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
+          <ScrollView style={{ padding: 20 }}>
+            <Text style={styles.modalTitle}>
+              {editingProductId ? "✏️ Modifier le produit" : "➕ Nouveau produit"}
+            </Text>
+
+            <TextInput style={styles.input} placeholder="Titre du produit" value={title} onChangeText={setTitle} />
+            <TextInput style={styles.input} placeholder="Prix (FCFA)" keyboardType="numeric" value={price} onChangeText={setPrice} />
+            <TextInput style={styles.input} placeholder="Catégorie (ex: Vêtements, Chaussures)" value={category} onChangeText={setCategory} />
+            <TextInput style={[styles.input, { height: 80 }]} placeholder="Description" multiline value={description} onChangeText={setDescription} />
+
+            <Text style={styles.sectionHeader}>📷 Liens des photos (jusqu'à 5) :</Text>
+            {images.map((img, idx) => (
+              <TextInput
+                key={idx}
+                style={styles.input}
+                placeholder={`URL Photo ${idx + 1}`}
+                value={img}
+                onChangeText={(text) => {
+                  const updated = [...images];
+                  updated[idx] = text;
+                  setImages(updated);
+                }}
+              />
+            ))}
+
+            <TouchableOpacity style={styles.saveBtn} onPress={saveProduct}>
+              <Text style={styles.saveBtnText}>Enregistrer le produit</Text>
             </TouchableOpacity>
-          )}
-        />
+            <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowProductModal(false)}>
+              <Text style={styles.cancelBtnText}>Annuler</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
+      {/* MODAL : Fiche Produit Client + Galerie 5 photos */}
+      {selectedProduct && (
+        <Modal visible={true} animationType="slide">
+          <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
+            <ScrollView style={{ padding: 15 }}>
+              <TouchableOpacity style={styles.closeBtn} onPress={() => setSelectedProduct(null)}>
+                <Text style={styles.closeBtnText}>✕ Fermer</Text>
+              </TouchableOpacity>
+
+              {/* Photo Principale avec ouverture Zoom */}
+              <TouchableOpacity onPress={() => setShowZoomModal(true)}>
+                <Image
+                  source={{ uri: selectedProduct.images[activeImageIndex] }}
+                  style={styles.largeProductImage}
+                />
+                <Text style={styles.zoomHint}>🔍 Clic pour agrandir la photo</Text>
+              </TouchableOpacity>
+
+              {/* Miniatures des 5 photos */}
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 10 }}>
+                {selectedProduct.images.map((img, idx) => (
+                  <TouchableOpacity key={idx} onPress={() => setActiveImageIndex(idx)}>
+                    <Image
+                      source={{ uri: img }}
+                      style={[
+                        styles.thumbnail,
+                        activeImageIndex === idx && styles.activeThumbnail
+                      ]}
+                    />
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+
+              <Text style={styles.productDetailsTitle}>{selectedProduct.title}</Text>
+              <Text style={styles.productDetailsPrice}>{selectedProduct.price} FCFA</Text>
+              <Text style={styles.productDetailsCategory}>Catégorie : {selectedProduct.category}</Text>
+              <Text style={styles.productDetailsDesc}>{selectedProduct.description}</Text>
+
+              {/* Bouton Acheter / Payer */}
+              <TouchableOpacity style={styles.buyBtn} onPress={() => Alert.alert("Paiement", "Redirection vers le paiement...")}>
+                <Text style={styles.buyBtnText}>💳 Payer / Commander</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </SafeAreaView>
+        </Modal>
+      )}
+
+      {/* MODAL : Zoom Photo en Plein Écran */}
+      {showZoomModal && selectedProduct && (
+        <Modal visible={true} transparent animationType="fade">
+          <View style={styles.fullScreenOverlay}>
+            <TouchableOpacity style={styles.fullScreenClose} onPress={() => setShowZoomModal(false)}>
+              <Text style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>✕ Fermer le zoom</Text>
+            </TouchableOpacity>
+            <Image
+              source={{ uri: selectedProduct.images[activeImageIndex] }}
+              style={styles.fullScreenImage}
+              resizeMode="contain"
+            />
+          </View>
+        </Modal>
       )}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f4f6f8',
-  },
-  header: {
-    backgroundColor: '#1e293b',
-    paddingTop: 45,
-    paddingBottom: 20,
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#ffffff',
-  },
-  headerSubtitle: {
-    fontSize: 13,
-    color: '#94a3b8',
-    marginTop: 2,
-  },
-  searchContainer: {
-    padding: 12,
-  },
-  searchInput: {
-    backgroundColor: '#ffffff',
-    borderRadius: 10,
-    paddingHorizontal: 15,
-    paddingVertical: 10,
-    fontSize: 15,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-  },
-  listContainer: {
-    paddingHorizontal: 6,
-  },
-  card: {
-    flex: 1,
-    margin: 6,
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    overflow: 'hidden',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  cardImage: {
-    width: '100%',
-    height: 140,
-  },
-  cardInfo: {
-    padding: 10,
-  },
-  cardCategory: {
-    fontSize: 10,
-    color: '#64748b',
-    textTransform: 'uppercase',
-    fontWeight: 'bold',
-  },
-  cardName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#0f172a',
-    marginVertical: 2,
-  },
-  cardPrice: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#16a34a',
-  },
-  detailContainer: {
-    flex: 1,
-    padding: 15,
-  },
-  backButton: {
-    marginBottom: 15,
-  },
-  backButtonText: {
-    color: '#2563eb',
-    fontWeight: 'bold',
-    fontSize: 15,
-  },
-  detailImage: {
-    width: '100%',
-    height: 250,
-    borderRadius: 15,
-  },
-  detailInfo: {
-    backgroundColor: '#ffffff',
-    padding: 15,
-    borderRadius: 15,
-    marginTop: 15,
-  },
-  detailCategory: {
-    color: '#64748b',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  detailName: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#0f172a',
-    marginVertical: 5,
-  },
-  detailPrice: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#16a34a',
-    marginBottom: 15,
-  },
-  descriptionTitle: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#334155',
-    marginBottom: 5,
-  },
-  detailDescription: {
-    color: '#475569',
-    fontSize: 14,
-    lineHeight: 20,
-    marginBottom: 20,
-  },
-  orderButton: {
-    backgroundColor: '#25D366',
-    paddingVertical: 14,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  orderButtonText: {
-    color: '#ffffff',
-    fontWeight: 'bold',
-    fontSize: 16,
-  },
+  container: { flex: 1, backgroundColor: '#f4f6f8' },
+  header: { backgroundColor: '#1a202c', padding: 20, alignItems: 'center' },
+  headerTitle: { color: '#fff', fontSize: 24, fontWeight: 'bold' },
+  headerSubtitle: { color: '#a0aec0', fontSize: 14, marginTop: 4 },
+  adminBadge: { marginTop: 10, backgroundColor: '#2d3748', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 15 },
+  adminBadgeText: { color: '#cbd5e0', fontSize: 12 },
+  searchContainer: { padding: 15 },
+  searchInput: { backgroundColor: '#fff', borderRadius: 8, padding: 12, borderColor: '#e2e8f0', borderWidth: 1 },
+  addButton: { backgroundColor: '#38a169', marginHorizontal: 15, marginBottom: 10, padding: 14, borderRadius: 8, alignItems: 'center' },
+  addButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
+  catalog: { flex: 1, paddingHorizontal: 15 },
+  emptyText: { textAlign: 'center', marginTop: 40, color: '#a0aec0' },
+  productGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+  productCard: { backgroundColor: '#fff', width: '48%', borderRadius: 8, marginBottom: 15, overflow: 'hidden', elevation: 2 },
+  productImage: { width: '100%', height: 140 },
+  productDetails: { padding: 10 },
+  productCategory: { fontSize: 10, color: '#718096', textTransform: 'uppercase' },
+  productTitle: { fontSize: 14, fontWeight: 'bold', color: '#2d3748', marginTop: 2 },
+  productPrice: { fontSize: 14, fontWeight: 'bold', color: '#38a169', marginTop: 4 },
+  adminActions: { flexDirection: 'row', borderTopWidth: 1, borderColor: '#edf2f7' },
+  editBtn: { flex: 1, padding: 8, backgroundColor: '#edf2f7', alignItems: 'center' },
+  deleteBtn: { flex: 1, padding: 8, backgroundColor: '#fed7d7', alignItems: 'center' },
+  btnText: { fontSize: 11, fontWeight: 'bold' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
+  modalContent: { backgroundColor: '#fff', width: '85%', padding: 20, borderRadius: 10 },
+  modalTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 15, textAlign: 'center' },
+  input: { borderWidth: 1, borderColor: '#cbd5e0', borderRadius: 6, padding: 10, marginBottom: 12 },
+  sectionHeader: { fontSize: 14, fontWeight: 'bold', marginVertical: 8 },
+  saveBtn: { backgroundColor: '#3182ce', padding: 12, borderRadius: 6, alignItems: 'center', marginTop: 10 },
+  saveBtnText: { color: '#fff', fontWeight: 'bold' },
+  cancelBtn: { padding: 12, alignItems: 'center', marginTop: 5 },
+  cancelBtnText: { color: '#e53e3e' },
+  closeBtn: { alignSelf: 'flex-end', padding: 10 },
+  closeBtnText: { fontSize: 16, fontWeight: 'bold', color: '#e53e3e' },
+  largeProductImage: { width: '100%', height: 280, borderRadius: 8 },
+  zoomHint: { textAlign: 'center', color: '#718096', fontSize: 12, marginVertical: 5 },
+  thumbnail: { width: 60, height: 60, borderRadius: 6, marginRight: 8, borderWidth: 1, borderColor: '#cbd5e0' },
+  activeThumbnail: { borderColor: '#3182ce', borderWidth: 2 },
+  productDetailsTitle: { fontSize: 22, fontWeight: 'bold', marginTop: 10 },
+  productDetailsPrice: { fontSize: 20, fontWeight: 'bold', color: '#38a169', marginVertical: 5 },
+  productDetailsCategory: { fontSize: 14, color: '#718096' },
+  productDetailsDesc: { fontSize: 14, color: '#4a5568', marginTop: 10, lineHeight: 20 },
+  buyBtn: { backgroundColor: '#38a169', padding: 16, borderRadius: 8, alignItems: 'center', marginTop: 20 },
+  buyBtnText: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
+  fullScreenOverlay: { flex: 1, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' },
+  fullScreenClose: { position: 'absolute', top: 50, right: 20, zIndex: 10 },
+  fullScreenImage: { width, height: width }
 });
-    
