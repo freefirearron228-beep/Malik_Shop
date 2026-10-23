@@ -33,19 +33,20 @@ export default function App() {
   const [price, setPrice] = useState('');
   const [category, setCategory] = useState('');
   const [description, setDescription] = useState('');
-  const [images, setImages] = useState([]); // Tableau des URI d'images de la galerie
+  const [location, setLocation] = useState('');
+  const [images, setImages] = useState(['', '', '', '']); // 4 Photos Max
 
-  // Modal Vue Client + Zoom
+  // Client Detail Modal
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [showZoomModal, setShowZoomModal] = useState(false);
 
-  // Fonction pour sélectionner une image dans la galerie Android
+  // Choisir photo depuis la galerie
   const pickImage = async (index) => {
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
     
     if (permissionResult.granted === false) {
-      Alert.alert("Permission requise", "L'accès à la galerie est nécessaire pour choisir une photo.");
+      Alert.alert("Permission requise", "Accès à la galerie nécessaire pour choisir une photo.");
       return;
     }
 
@@ -66,7 +67,7 @@ export default function App() {
 
   const removeImage = (index) => {
     const newImages = [...images];
-    newImages.splice(index, 1);
+    newImages[index] = '';
     setImages(newImages);
   };
 
@@ -75,7 +76,7 @@ export default function App() {
       setIsAdminLoggedIn(true);
       setShowAdminLogin(false);
       setInputPassword('');
-      Alert.alert("Succès", "Espace Administrateur déverrouillé !");
+      Alert.alert("Succès", "Connecté en Mode Administrateur !");
     } else {
       Alert.alert("Erreur", "Mot de passe incorrect.");
     }
@@ -88,25 +89,30 @@ export default function App() {
       setPrice(product.price.toString());
       setCategory(product.category);
       setDescription(product.description || '');
-      setImages([...product.images]);
+      setLocation(product.location || '');
+      const imgs = [...product.images];
+      while (imgs.length < 4) imgs.push('');
+      setImages(imgs);
     } else {
       setEditingProductId(null);
       setTitle('');
       setPrice('');
       setCategory('');
       setDescription('');
-      setImages([]);
+      setLocation('');
+      setImages(['', '', '', '']);
     }
     setShowProductModal(true);
   };
 
   const saveProduct = () => {
     if (!title || !price || !category) {
-      Alert.alert("Champs manquants", "Veuillez remplir au moins le titre, le prix et la catégorie.");
+      Alert.alert("Attention", "Veuillez remplir le titre, le prix et la catégorie.");
       return;
     }
 
-    const finalImages = images.length > 0 ? images : ['https://via.placeholder.com/400?text=Pas+d+image'];
+    const validImages = images.filter(img => img !== '');
+    const finalImages = validImages.length > 0 ? validImages : ['https://via.placeholder.com/400/1e293b/ffffff?text=MalikShop'];
 
     if (editingProductId) {
       setProducts(products.map(p => p.id === editingProductId ? {
@@ -115,6 +121,7 @@ export default function App() {
         price: parseFloat(price),
         category,
         description,
+        location,
         images: finalImages
       } : p));
     } else {
@@ -124,6 +131,7 @@ export default function App() {
         price: parseFloat(price),
         category,
         description,
+        location,
         images: finalImages
       };
       setProducts([...products, newProduct]);
@@ -135,7 +143,7 @@ export default function App() {
   const deleteProduct = (id) => {
     Alert.alert(
       "Suppression",
-      "Voulez-vous vraiment supprimer cet article ?",
+      "Voulez-vous supprimer cet article ?",
       [
         { text: "Annuler", style: "cancel" },
         { text: "Supprimer", style: "destructive", onPress: () => setProducts(products.filter(p => p.id !== id)) }
@@ -150,54 +158,52 @@ export default function App() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
-      
-      {/* En-tête Premium */}
+      <StatusBar barStyle="light-content" backgroundColor="#111827" />
+
+      {/* En-Tête MalikShop Style Dark Mode */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>🛍️ Malik Shop</Text>
-        <Text style={styles.headerSubtitle}>Boutique Officielle</Text>
+        <View style={styles.headerTop}>
+          <Text style={styles.logoText}>🛒 <Text style={styles.logoBold}>Malik</Text><Text style={styles.logoGold}>Shop</Text></Text>
+          <TouchableOpacity 
+            style={styles.adminBadge}
+            onPress={() => isAdminLoggedIn ? setIsAdminLoggedIn(false) : setShowAdminLogin(true)}
+          >
+            <Text style={styles.adminBadgeText}>
+              {isAdminLoggedIn ? "🔓 Admin (Déconnexion)" : "🔒 Admin"}
+            </Text>
+          </TouchableOpacity>
+        </View>
 
-        <TouchableOpacity 
-          style={styles.adminBadge}
-          onPress={() => isAdminLoggedIn ? setIsAdminLoggedIn(false) : setShowAdminLogin(true)}
-        >
-          <Text style={styles.adminBadgeText}>
-            {isAdminLoggedIn ? "🔓 Mode Admin (Déconnexion)" : "🔒 Espace Admin"}
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Recherche */}
-      <View style={styles.searchContainer}>
+        {/* Barre de Recherche */}
         <TextInput
           style={styles.searchInput}
-          placeholder="🔍 Rechercher un produit, une catégorie..."
-          placeholderTextColor="#94a3b8"
+          placeholder="Rechercher un produit..."
+          placeholderTextColor="#6b7280"
           value={searchQuery}
           onChangeText={setSearchQuery}
         />
       </View>
 
-      {/* Bouton Ajouter Produit Admin */}
+      {/* Bouton Mettre en Vente pour Admin */}
       {isAdminLoggedIn && (
         <TouchableOpacity style={styles.addButton} onPress={() => openProductForm()}>
-          <Text style={styles.addButtonText}>✨ Ajouter un nouveau produit</Text>
+          <Text style={styles.addButtonText}>➕ Mettre un article en vente</Text>
         </TouchableOpacity>
       )}
 
-      {/* Catalogue Produit */}
+      {/* Liste des produits */}
       <ScrollView style={styles.catalog} showsVerticalScrollIndicator={false}>
         {filteredProducts.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyIcon}>📦</Text>
-            <Text style={styles.emptyTitle}>Catalogue vide</Text>
-            <Text style={styles.emptySub}>Aucun produit disponible pour le moment.</Text>
+            <Text style={styles.emptyTitle}>Aucun produit disponible</Text>
+            <Text style={styles.emptySub}>Ajoutez vos articles depuis l'espace Admin.</Text>
           </View>
         ) : (
           <View style={styles.productGrid}>
             {filteredProducts.map(product => (
               <View key={product.id} style={styles.productCard}>
-                <TouchableOpacity activeOpacity={0.8} onPress={() => { setSelectedProduct(product); setActiveImageIndex(0); }}>
+                <TouchableOpacity onPress={() => { setSelectedProduct(product); setActiveImageIndex(0); }}>
                   <Image source={{ uri: product.images[0] }} style={styles.productImage} />
                   <View style={styles.productInfo}>
                     <Text style={styles.productCategory}>{product.category}</Text>
@@ -222,116 +228,141 @@ export default function App() {
         )}
       </ScrollView>
 
-      {/* MODAL Login Admin */}
+      {/* MODAL : Login Admin */}
       <Modal visible={showAdminLogin} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.loginCard}>
-            <Text style={styles.loginTitle}>🔒 Accès Administrateur</Text>
-            <Text style={styles.loginSub}>Saisissez votre mot de passe pour gérer le catalogue</Text>
+            <Text style={styles.loginTitle}>🔒 Code Secret Admin</Text>
             <TextInput
               style={styles.input}
               placeholder="Mot de passe"
+              placeholderTextColor="#6b7280"
               secureTextEntry
               value={inputPassword}
               onChangeText={setInputPassword}
             />
             <TouchableOpacity style={styles.primaryBtn} onPress={handleAdminLogin}>
-              <Text style={styles.primaryBtnText}>Se connecter</Text>
+              <Text style={styles.primaryBtnText}>Accéder</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.secondaryBtn} onPress={() => setShowAdminLogin(false)}>
-              <Text style={styles.secondaryBtnText}>Annuler</Text>
+            <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowAdminLogin(false)}>
+              <Text style={styles.cancelBtnText}>Annuler</Text>
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
 
-      {/* MODAL Nouveau / Édition Produit (Carrés Galerie) */}
+      {/* MODAL : Mettre un article en vente (4 Carrés Photo Pointillés) */}
       <Modal visible={showProductModal} animationType="slide">
-        <SafeAreaView style={{ flex: 1, backgroundColor: '#f8fafc' }}>
-          <View style={styles.formHeader}>
-            <Text style={styles.formHeaderTitle}>
-              {editingProductId ? "✏️ Modifier l'article" : "➕ Ajouter un article"}
-            </Text>
-            <TouchableOpacity onPress={() => setShowProductModal(false)}>
-              <Text style={styles.closeText}>✕</Text>
-            </TouchableOpacity>
-          </View>
-
+        <SafeAreaView style={styles.modalDarkContainer}>
           <ScrollView style={{ padding: 20 }}>
-            <Text style={styles.label}>Titre du produit</Text>
-            <TextInput style={styles.input} placeholder="Ex: T-Shirt Malik Premium" value={title} onChangeText={setTitle} />
+            <Text style={styles.modalMainTitle}>Mettre un article en vente</Text>
+            <Text style={styles.modalSubTitle}>Jusqu'à 4 photos • Code secret pour protéger votre annonce</Text>
 
-            <Text style={styles.label}>Prix (FCFA)</Text>
-            <TextInput style={styles.input} placeholder="Ex: 15000" keyboardType="numeric" value={price} onChangeText={setPrice} />
-
-            <Text style={styles.label}>Catégorie</Text>
-            <TextInput style={styles.input} placeholder="Ex: Vêtements, Chaussures, Montres" value={category} onChangeText={setCategory} />
-
-            <Text style={styles.label}>Description</Text>
-            <TextInput style={[styles.input, { height: 90 }]} placeholder="Description détaillée..." multiline value={description} onChangeText={setDescription} />
-
-            {/* Sélection de photos sous forme de 5 carrés d'images */}
-            <Text style={styles.label}>Photos du produit (Jusqu'à 5)</Text>
-            <Text style={styles.subLabel}>Cliquez sur un carré pour ouvrir votre galerie photos 📱</Text>
-
-            <View style={styles.imagePickerGrid}>
-              {[0, 1, 2, 3, 4].map((index) => (
-                <View key={index} style={styles.squarePickerContainer}>
+            {/* PHOTOS DU PRODUIT (1 à 4) */}
+            <Text style={styles.sectionLabel}>Photos du produit (1 à 4)</Text>
+            
+            <View style={styles.photoGrid}>
+              {[0, 1, 2, 3].map((index) => (
+                <View key={index} style={styles.photoBoxContainer}>
                   {images[index] ? (
-                    <View style={styles.squarePicker}>
-                      <Image source={{ uri: images[index] }} style={styles.squareImage} />
-                      <TouchableOpacity style={styles.removeBadge} onPress={() => removeImage(index)}>
-                        <Text style={styles.removeBadgeText}>✕</Text>
+                    <View style={styles.photoBoxFilled}>
+                      <Image source={{ uri: images[index] }} style={styles.photoBoxImage} />
+                      <TouchableOpacity style={styles.deleteBadge} onPress={() => removeImage(index)}>
+                        <Text style={styles.deleteBadgeText}>✕</Text>
                       </TouchableOpacity>
                     </View>
                   ) : (
-                    <TouchableOpacity style={styles.squarePickerEmpty} onPress={() => pickImage(index)}>
-                      <Text style={styles.cameraIcon}>📸</Text>
+                    <TouchableOpacity style={styles.photoBoxDashed} onPress={() => pickImage(index)}>
+                      <Text style={styles.cameraIcon}>📷</Text>
                       <Text style={styles.cameraText}>Photo {index + 1}</Text>
                     </TouchableOpacity>
                   )}
                 </View>
               ))}
             </View>
+            <Text style={styles.infoText}>JPG ou PNG • max 5 Mo par photo</Text>
+
+            {/* FORMULAIRE TEXTE */}
+            <Text style={styles.label}>Titre de l'article *</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Ex: iPhone 13 Pro 128Go"
+              placeholderTextColor="#6b7280"
+              value={title}
+              onChangeText={setTitle}
+            />
+
+            <Text style={styles.label}>Prix (FCFA) *</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Ex: 250000"
+              placeholderTextColor="#6b7280"
+              keyboardType="numeric"
+              value={price}
+              onChangeText={setPrice}
+            />
+
+            <Text style={styles.label}>Catégorie *</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Ex: Électronique, Vêtements, Chaussures"
+              placeholderTextColor="#6b7280"
+              value={category}
+              onChangeText={setCategory}
+            />
+
+            <Text style={styles.label}>Description</Text>
+            <TextInput
+              style={[styles.input, { height: 90 }]}
+              placeholder="État, marque, livraison possible..."
+              placeholderTextColor="#6b7280"
+              multiline
+              value={description}
+              onChangeText={setDescription}
+            />
+
+            <Text style={styles.label}>Localisation</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Ex: Lomé, Kara, Sokodé..."
+              placeholderTextColor="#6b7280"
+              value={location}
+              onChangeText={setLocation}
+            />
 
             <TouchableOpacity style={styles.primaryBtn} onPress={saveProduct}>
-              <Text style={styles.primaryBtnText}>💾 Enregistrer le produit</Text>
+              <Text style={styles.primaryBtnText}>💾 Enregistrer l'article</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowProductModal(false)}>
+              <Text style={styles.cancelBtnText}>Fermer</Text>
             </TouchableOpacity>
           </ScrollView>
         </SafeAreaView>
       </Modal>
 
-      {/* MODAL Vue Produit Client + Galerie & Zoom */}
+      {/* MODAL Client : Voir produit + Zoom 4 photos */}
       {selectedProduct && (
         <Modal visible={true} animationType="slide">
-          <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
-            <View style={styles.formHeader}>
-              <Text style={styles.formHeaderTitle}>{selectedProduct.category}</Text>
-              <TouchableOpacity onPress={() => setSelectedProduct(null)}>
-                <Text style={styles.closeText}>✕</Text>
-              </TouchableOpacity>
-            </View>
-
+          <SafeAreaView style={styles.modalDarkContainer}>
             <ScrollView style={{ padding: 15 }}>
-              {/* Photo Principale Grand Format */}
-              <TouchableOpacity activeOpacity={0.9} onPress={() => setShowZoomModal(true)}>
-                <Image source={{ uri: selectedProduct.images[activeImageIndex] }} style={styles.mainDetailImage} />
-                <View style={styles.zoomBadge}>
-                  <Text style={styles.zoomBadgeText}>🔍 Cliquer pour zoomer</Text>
-                </View>
+              <TouchableOpacity style={styles.closeBtn} onPress={() => setSelectedProduct(null)}>
+                <Text style={styles.closeBtnText}>✕ Fermer</Text>
               </TouchableOpacity>
 
-              {/* Miniatures des 5 photos */}
+              <TouchableOpacity onPress={() => setShowZoomModal(true)}>
+                <Image source={{ uri: selectedProduct.images[activeImageIndex] }} style={styles.mainImage} />
+                <Text style={styles.zoomText}>🔍 Toucher pour agrandir</Text>
+              </TouchableOpacity>
+
+              {/* Miniatures 4 photos */}
               {selectedProduct.images.length > 1 && (
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 15 }}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 12 }}>
                   {selectedProduct.images.map((img, idx) => (
                     <TouchableOpacity key={idx} onPress={() => setActiveImageIndex(idx)}>
                       <Image
                         source={{ uri: img }}
-                        style={[
-                          styles.thumbImage,
-                          activeImageIndex === idx && styles.activeThumbImage
-                        ]}
+                        style={[styles.thumb, activeImageIndex === idx && styles.activeThumb]}
                       />
                     </TouchableOpacity>
                   ))}
@@ -340,30 +371,29 @@ export default function App() {
 
               <Text style={styles.detailTitle}>{selectedProduct.title}</Text>
               <Text style={styles.detailPrice}>{selectedProduct.price.toLocaleString()} FCFA</Text>
-              
-              <View style={styles.divider} />
-              
-              <Text style={styles.detailDescTitle}>Description :</Text>
-              <Text style={styles.detailDesc}>{selectedProduct.description || "Aucune description fournie."}</Text>
+              {selectedProduct.location ? <Text style={styles.detailLocation}>📍 {selectedProduct.location}</Text> : null}
 
-              <TouchableOpacity style={styles.buyBtn} onPress={() => Alert.alert("Commander", "Commande envoyée avec succès !")}>
-                <Text style={styles.buyBtnText}>🛒 Acheter maintenant</Text>
+              <Text style={styles.detailDescHeader}>Description :</Text>
+              <Text style={styles.detailDesc}>{selectedProduct.description || "Aucune description."}</Text>
+
+              <TouchableOpacity style={styles.buyBtn} onPress={() => Alert.alert("Achat", "Contactez le vendeur pour finaliser !")}>
+                <Text style={styles.buyBtnText}>🛒 Commander / Payer</Text>
               </TouchableOpacity>
             </ScrollView>
           </SafeAreaView>
         </Modal>
       )}
 
-      {/* MODAL Zoom Plein Écran */}
+      {/* Zoom Fullscreen */}
       {showZoomModal && selectedProduct && (
-        <Modal visible={true} transparent animationType="fade">
+        <Modal visible={true} transparent>
           <View style={styles.zoomOverlay}>
-            <TouchableOpacity style={styles.zoomCloseBtn} onPress={() => setShowZoomModal(false)}>
-              <Text style={styles.zoomCloseText}>✕ Fermer</Text>
+            <TouchableOpacity style={styles.zoomClose} onPress={() => setShowZoomModal(false)}>
+              <Text style={{ color: '#fff', fontSize: 16 }}>✕ Fermer</Text>
             </TouchableOpacity>
             <Image
               source={{ uri: selectedProduct.images[activeImageIndex] }}
-              style={styles.fullImage}
+              style={styles.zoomImage}
               resizeMode="contain"
             />
           </View>
@@ -374,70 +404,71 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f1f5f9' },
-  header: { backgroundColor: '#0f172a', padding: 20, alignItems: 'center', borderBottomLeftRadius: 20, borderBottomRightRadius: 20 },
-  headerTitle: { color: '#ffffff', fontSize: 26, fontWeight: '800' },
-  headerSubtitle: { color: '#94a3b8', fontSize: 13, marginTop: 2 },
-  adminBadge: { marginTop: 12, backgroundColor: '#1e293b', paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: '#334155' },
-  adminBadgeText: { color: '#cbd5e1', fontSize: 12, fontWeight: '600' },
-  searchContainer: { padding: 15 },
-  searchInput: { backgroundColor: '#ffffff', borderRadius: 12, padding: 14, fontSize: 15, color: '#0f172a', shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 5, elevation: 2 },
-  addButton: { backgroundColor: '#2563eb', marginHorizontal: 15, marginBottom: 15, padding: 14, borderRadius: 12, alignItems: 'center', shadowColor: '#2563eb', shadowOpacity: 0.3, shadowRadius: 5, elevation: 3 },
-  addButtonText: { color: '#ffffff', fontWeight: 'bold', fontSize: 15 },
+  container: { flex: 1, backgroundColor: '#0b0f19' },
+  header: { backgroundColor: '#111827', padding: 16, borderBottomWidth: 1, borderColor: '#1f2937' },
+  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  logoText: { fontSize: 20, color: '#fff' },
+  logoBold: { fontWeight: 'bold' },
+  logoGold: { color: '#f59e0b', fontWeight: 'bold' },
+  adminBadge: { backgroundColor: '#1f2937', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
+  adminBadgeText: { color: '#9ca3af', fontSize: 12 },
+  searchInput: { backgroundColor: '#1f2937', color: '#fff', borderRadius: 8, padding: 10, fontSize: 14 },
+  addButton: { backgroundColor: '#f59e0b', margin: 15, padding: 14, borderRadius: 10, alignItems: 'center' },
+  addButtonText: { color: '#000', fontWeight: 'bold', fontSize: 15 },
   catalog: { flex: 1, paddingHorizontal: 15 },
-  emptyContainer: { alignItems: 'center', marginTop: 60 },
+  emptyContainer: { alignItems: 'center', marginTop: 80 },
   emptyIcon: { fontSize: 50 },
-  emptyTitle: { fontSize: 18, fontWeight: 'bold', color: '#334155', marginTop: 10 },
-  emptySub: { fontSize: 13, color: '#64748b', marginTop: 4 },
+  emptyTitle: { color: '#fff', fontSize: 18, fontWeight: 'bold', marginTop: 10 },
+  emptySub: { color: '#6b7280', fontSize: 13, marginTop: 4 },
   productGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
-  productCard: { backgroundColor: '#ffffff', width: '48%', borderRadius: 16, marginBottom: 15, overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 },
-  productImage: { width: '100%', height: 150, backgroundColor: '#e2e8f0' },
-  productInfo: { padding: 12 },
-  productCategory: { fontSize: 10, color: '#64748b', fontWeight: 'bold', textTransform: 'uppercase' },
-  productTitle: { fontSize: 14, fontWeight: '700', color: '#1e293b', marginTop: 2 },
-  productPrice: { fontSize: 15, fontWeight: '800', color: '#16a34a', marginTop: 6 },
-  adminActions: { flexDirection: 'row', borderTopWidth: 1, borderColor: '#f1f5f9' },
-  editBtn: { flex: 1, padding: 10, backgroundColor: '#f8fafc', alignItems: 'center' },
-  editBtnText: { fontSize: 12, fontWeight: '600', color: '#2563eb' },
-  deleteBtn: { padding: 10, paddingHorizontal: 15, backgroundColor: '#fef2f2', alignItems: 'center' },
-  deleteBtnText: { fontSize: 12 },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.7)', justifyContent: 'center', alignItems: 'center', padding: 20 },
-  loginCard: { backgroundColor: '#ffffff', width: '100%', padding: 25, borderRadius: 20, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 10 },
-  loginTitle: { fontSize: 20, fontWeight: 'bold', color: '#0f172a', textAlign: 'center' },
-  loginSub: { fontSize: 13, color: '#64748b', textAlign: 'center', marginTop: 5, marginBottom: 20 },
-  label: { fontSize: 13, fontWeight: '700', color: '#334155', marginBottom: 6 },
-  subLabel: { fontSize: 12, color: '#64748b', marginBottom: 12 },
-  input: { backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 10, padding: 12, fontSize: 14, marginBottom: 15, color: '#0f172a' },
-  primaryBtn: { backgroundColor: '#2563eb', padding: 16, borderRadius: 12, alignItems: 'center', marginTop: 10 },
-  primaryBtnText: { color: '#ffffff', fontWeight: 'bold', fontSize: 15 },
-  secondaryBtn: { padding: 14, alignItems: 'center', marginTop: 5 },
-  secondaryBtnText: { color: '#e11d48', fontWeight: '600' },
-  formHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderColor: '#e2e8f0', backgroundColor: '#ffffff' },
-  formHeaderTitle: { fontSize: 18, fontWeight: 'bold', color: '#0f172a' },
-  closeText: { fontSize: 22, fontWeight: 'bold', color: '#64748b' },
-  imagePickerGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 20 },
-  squarePickerContainer: { width: '30%', aspectRatio: 1 },
-  squarePickerEmpty: { flex: 1, backgroundColor: '#e2e8f0', borderRadius: 12, borderWidth: 1.5, borderColor: '#cbd5e1', borderStyle: 'dashed', justifyContent: 'center', alignItems: 'center' },
-  cameraIcon: { fontSize: 24 },
-  cameraText: { fontSize: 10, color: '#64748b', marginTop: 4, fontWeight: '600' },
-  squarePicker: { flex: 1, borderRadius: 12, overflow: 'hidden' },
-  squareImage: { width: '100%', height: '100%' },
-  removeBadge: { position: 'absolute', top: 4, right: 4, backgroundColor: 'rgba(225, 29, 72, 0.9)', width: 22, height: 22, borderRadius: 11, justifyContent: 'center', alignItems: 'center' },
-  removeBadgeText: { color: '#fff', fontSize: 11, fontWeight: 'bold' },
-  mainDetailImage: { width: '100%', height: 320, borderRadius: 16, backgroundColor: '#e2e8f0' },
-  zoomBadge: { position: 'absolute', bottom: 12, right: 12, backgroundColor: 'rgba(15, 23, 42, 0.75)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
-  zoomBadgeText: { color: '#fff', fontSize: 11, fontWeight: '600' },
-  thumbImage: { width: 65, height: 65, borderRadius: 10, marginRight: 10, borderWidth: 2, borderColor: 'transparent' },
-  activeThumbImage: { borderColor: '#2563eb' },
-  detailTitle: { fontSize: 22, fontWeight: 'bold', color: '#0f172a', marginTop: 10 },
-  detailPrice: { fontSize: 22, fontWeight: '800', color: '#16a34a', marginTop: 6 },
-  divider: { height: 1, backgroundColor: '#e2e8f0', marginVertical: 15 },
-  detailDescTitle: { fontSize: 14, fontWeight: 'bold', color: '#334155' },
-  detailDesc: { fontSize: 14, color: '#64748b', marginTop: 6, lineHeight: 22 },
-  buyBtn: { backgroundColor: '#16a34a', padding: 18, borderRadius: 14, alignItems: 'center', marginTop: 25 },
-  buyBtnText: { color: '#ffffff', fontSize: 17, fontWeight: 'bold' },
-  zoomOverlay: { flex: 1, backgroundColor: '#000000', justifyContent: 'center', alignItems: 'center' },
-  zoomCloseBtn: { position: 'absolute', top: 50, right: 20, zIndex: 10, backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 },
-  zoomCloseText: { color: '#ffffff', fontWeight: 'bold' },
-  fullImage: { width, height: width * 1.2 }
+  productCard: { backgroundColor: '#1f2937', width: '48%', borderRadius: 12, marginBottom: 15, overflow: 'hidden' },
+  productImage: { width: '100%', height: 140, backgroundColor: '#374151' },
+  productInfo: { padding: 10 },
+  productCategory: { color: '#f59e0b', fontSize: 10, fontWeight: 'bold' },
+  productTitle: { color: '#fff', fontSize: 14, fontWeight: 'bold', marginTop: 2 },
+  productPrice: { color: '#10b981', fontSize: 14, fontWeight: 'bold', marginTop: 4 },
+  adminActions: { flexDirection: 'row', borderTopWidth: 1, borderColor: '#374151' },
+  editBtn: { flex: 1, padding: 8, alignItems: 'center', backgroundColor: '#111827' },
+  editBtnText: { color: '#60a5fa', fontSize: 12 },
+  deleteBtn: { padding: 8, paddingHorizontal: 12, backgroundColor: '#7f1d1d' },
+  deleteBtnText: { color: '#fff' },
+  modalDarkContainer: { flex: 1, backgroundColor: '#0b0f19' },
+  modalMainTitle: { color: '#fff', fontSize: 22, fontWeight: 'bold' },
+  modalSubTitle: { color: '#9ca3af', fontSize: 12, marginTop: 4, marginBottom: 20 },
+  sectionLabel: { color: '#f59e0b', fontSize: 14, fontWeight: 'bold', marginBottom: 10 },
+  photoGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+  photoBoxContainer: { width: '48%', aspectRatio: 1.3, marginBottom: 12 },
+  photoBoxDashed: { flex: 1, borderStyle: 'dashed', borderWidth: 1.5, borderColor: '#f59e0b', borderRadius: 10, backgroundColor: '#111827', justifyContent: 'center', alignItems: 'center' },
+  cameraIcon: { fontSize: 26 },
+  cameraText: { color: '#f59e0b', fontSize: 12, marginTop: 4, fontWeight: '600' },
+  photoBoxFilled: { flex: 1, borderRadius: 10, overflow: 'hidden' },
+  photoBoxImage: { width: '100%', height: '100%' },
+  deleteBadge: { position: 'absolute', top: 5, right: 5, backgroundColor: '#ef4444', width: 22, height: 22, borderRadius: 11, justifyContent: 'center', alignItems: 'center' },
+  deleteBadgeText: { color: '#fff', fontWeight: 'bold', fontSize: 12 },
+  infoText: { color: '#6b7280', fontSize: 11, marginBottom: 20 },
+  label: { color: '#fff', fontSize: 13, fontWeight: 'bold', marginBottom: 6, marginTop: 10 },
+  input: { backgroundColor: '#111827', borderWidth: 1, borderColor: '#1f2937', borderRadius: 8, padding: 12, color: '#fff', fontSize: 14, marginBottom: 12 },
+  primaryBtn: { backgroundColor: '#f59e0b', padding: 15, borderRadius: 10, alignItems: 'center', marginTop: 15 },
+  primaryBtnText: { color: '#000', fontWeight: 'bold', fontSize: 15 },
+  cancelBtn: { padding: 14, alignItems: 'center' },
+  cancelBtnText: { color: '#ef4444' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', padding: 20 },
+  loginCard: { backgroundColor: '#111827', padding: 20, borderRadius: 12 },
+  loginTitle: { color: '#fff', fontSize: 18, fontWeight: 'bold', marginBottom: 15, textAlign: 'center' },
+  closeBtn: { alignSelf: 'flex-end', padding: 10 },
+  closeBtnText: { color: '#ef4444', fontSize: 16, fontWeight: 'bold' },
+  mainImage: { width: '100%', height: 280, borderRadius: 12, backgroundColor: '#1f2937' },
+  zoomText: { color: '#9ca3af', textAlign: 'center', fontSize: 12, marginTop: 6 },
+  thumb: { width: 60, height: 60, borderRadius: 8, marginRight: 8, borderWidth: 1, borderColor: '#374151' },
+  activeThumb: { borderColor: '#f59e0b', borderWidth: 2 },
+  detailTitle: { color: '#fff', fontSize: 20, fontWeight: 'bold', marginTop: 10 },
+  detailPrice: { color: '#10b981', fontSize: 20, fontWeight: 'bold', marginTop: 4 },
+  detailLocation: { color: '#9ca3af', fontSize: 13, marginTop: 4 },
+  detailDescHeader: { color: '#fff', fontSize: 14, fontWeight: 'bold', marginTop: 15 },
+  detailDesc: { color: '#9ca3af', fontSize: 14, marginTop: 4, lineHeight: 20 },
+  buyBtn: { backgroundColor: '#10b981', padding: 16, borderRadius: 10, alignItems: 'center', marginTop: 25 },
+  buyBtnText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
+  zoomOverlay: { flex: 1, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' },
+  zoomClose: { position: 'absolute', top: 50, right: 20, zIndex: 10 },
+  zoomImage: { width, height: width * 1.2 }
 });
