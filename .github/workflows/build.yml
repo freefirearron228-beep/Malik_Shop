@@ -27,8 +27,8 @@ jobs:
       - name: 📦 Install dependencies
         run: npm install
 
-      - name: ⚙️ Generate Android Project
-        run: npx expo prebuild --platform android
+      - name: ⚙️ Generate Clean Android Project
+        run: npx expo prebuild --platform android --clean
 
       - name: 🔨 Build APK with Gradle
         run: |
